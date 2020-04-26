@@ -1,0 +1,3 @@
+package com.jetacademy.simplesearchengine
+
+interface FileData

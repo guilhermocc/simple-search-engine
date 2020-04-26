@@ -1,16 +1,17 @@
-package search
+package com.jetacademy.simplesearchengine
 
 import java.io.File
+import java.lang.IllegalArgumentException
 
 fun main(args: Array<String>) {
     val fileName = parseComandLineArgs(args)
-    val (dataSet, inverseIndex) = loadDataFromFile(fileName)
-    var menuComand = -1
-    while (menuComand != 0) {
+    val dataSet: DataSet = loadDataFromFile(fileName)
+    var menuCommand = -1
+    while (menuCommand != 0) {
         printMenu()
-        menuComand = readLine()!!.toInt()
-        when (menuComand) {
-            1 -> findAPerson(dataSet, inverseIndex)
+        menuCommand = readLine()!!.toInt()
+        when (menuCommand) {
+            1 -> findAPerson(dataSet)
             2 -> printAllPeople(dataSet)
             0 -> exit()
             else -> println("Incorrect option! Try again.")
@@ -23,57 +24,67 @@ fun parseComandLineArgs(args: Array<String>): String {
     return args[fileNameIndex]
 }
 
-private fun loadDataFromFile(fileName: String): Pair<List<String>, Map<String, MutableList<Int>>> {
+private fun loadDataFromFile(fileName: String): DataSet {
     val file = File(fileName)
-    val peopleList: MutableList<String> = mutableListOf()
-    val inverseIndex: MutableMap<String, MutableList<Int>> = mutableMapOf()
+    val peopleList: MutableList<Person> = mutableListOf()
+    val invertedIndex: MutableMap<String, MutableSet<Int>> = mutableMapOf()
     var lineIndex = 0
-    file.forEachLine { personInfo ->
-        peopleList.add(personInfo)
-        personInfo.toLowerCase().split(" ").map { personElement ->
-            if (inverseIndex.containsKey(personElement))
-                inverseIndex[personElement]!!.add(lineIndex)
+    file.forEachLine { lineInfo ->
+        val personInfo =  lineInfo.split(" ")
+        peopleList.add(
+            Person(
+                firstName = personInfo[0],
+                lastName = personInfo.getOrNull(1),
+                email = personInfo.getOrNull(2)
+            )
+        )
+        lineInfo.toLowerCase().split(" ").map { personElement ->
+            if (invertedIndex.containsKey(personElement))
+                invertedIndex[personElement]!!.add(lineIndex)
             else
-                inverseIndex[personElement] = mutableListOf(lineIndex)
+                invertedIndex[personElement] = mutableSetOf(lineIndex)
         }
         lineIndex++
     }
-    return Pair(peopleList.toList(), inverseIndex.toMap())
+    return DataSet(
+        dataList = peopleList.toList(),
+        invertedIndex = invertedIndex.toMap()
+    )
 }
 
 
 private fun printMenu() =
     println("=== Menu ===\n" +
             "1. Find a person\n" +
-            "2. Print all people\n" +
+            "2. Print all persons\n" +
             "0. Exit")
 
 private fun exit() = println("Bye!")
 
-private fun findAPerson(peopleList: List<String>, inverseIndex: Map<String, MutableList<Int>>) {
-    println("Enter a name or email to search all suitable people.")
-    val searchData = readLine()!!
-    val queryResult = queryPerson(peopleList, searchData, inverseIndex)
-    printQueryResult(queryResult)
+private fun findAPerson(dataSet: DataSet) {
+    try {
+        println("Select a matching strategy: ${SearchStrategyType.values().joinToString(separator = ", ") { it.name }}")
+        val searchStrategy = SearchStrategyType.valueOf(readLine()!!)
+        println("Enter a name or email to search all suitable people.")
+        val queryKeyWords = readLine()!!.split(" ")
+        val queryResult = searchStrategy.search(dataSet, queryKeyWords)
+        printDataList(queryResult)
+    } catch (e: IllegalArgumentException) {
+        println("There is no such search engine!")
+    }
 }
 
-private fun printAllPeople(peopleList: List<String>) {
+private fun printAllPeople(dataSet: DataSet) {
     println("=== List of people ===")
-    printQueryResult(peopleList)
+    printDataList(dataSet.dataList)
 }
 
-private fun printQueryResult(queryResult: List<String>) {
-    if (queryResult.isNotEmpty()) {
-        println("${queryResult.size} persons found:")
-        queryResult.map(::println)
+private fun printDataList(dataList: List<FileData>) {
+    if (dataList.isNotEmpty()) {
+        println("${dataList.size} persons found:")
+        dataList.map(::println)
     } else
         println("No matching people found.")
 }
 
-private fun queryPerson(peopleList: List<String>, queryKeyWord: String, inverseIndex: Map<String, MutableList<Int>>): List<String> {
-    val normalizedKeyWord = queryKeyWord.toLowerCase()
-    if (inverseIndex.containsKey(normalizedKeyWord))
-        return inverseIndex[normalizedKeyWord]!!.map { peopleList[it] }
-    else
-        return listOf()
-}
+
